@@ -5,7 +5,7 @@ local server = require("websocket.server")
 local SECRET_TOKEN = "mysecret123"
 local positions = {}
 
--- Folosim portul setat de Render sau 4342 ca fallback
+-- Folosim portul setat de Render sau fallback 4342
 local port = tonumber(os.getenv("PORT") or 4342)
 local ws = server.sync({ port = port })
 
@@ -15,11 +15,12 @@ while true do
     for client in ws:clients() do
         local message, err = client:receive()
         if message then
-            -- verificăm autentificarea
+            -- Verificăm autentificarea
             if message == SECRET_TOKEN then
                 client:send("OK")
                 print("Client authenticated")
             else
+                -- Parsează coordonatele
                 local x, y = message:match("([^,]+),([^,]+)")
                 if x and y then
                     positions[client] = { x = tonumber(x), y = tonumber(y) }
