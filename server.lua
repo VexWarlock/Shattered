@@ -1,9 +1,11 @@
+-- server.lua
 local websocket = require("websocket")
 local server = require("websocket.server")
 
 local SECRET_TOKEN = "mysecret123"
 local positions = {}
 
+-- Folosim portul setat de Render sau 4342 ca fallback
 local port = tonumber(os.getenv("PORT") or 4342)
 local ws = server.sync({ port = port })
 
