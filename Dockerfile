@@ -1,17 +1,21 @@
-FROM debian:bullseye
+# Folosim o imagine cu Lua preinstalat
+FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y \
-    lua5.3 \
-    liblua5.3-dev \
-    luarocks \
-    build-essential \
- && luarocks install luasocket \
- && rm -rf /var/lib/apt/lists/*
+# Instalăm Lua și LuaRocks
+RUN apt-get update && apt-get install -y lua5.3 luarocks git build-essential
 
+# Instalăm lua-websockets
+RUN luarocks install lua-websockets
+
+# Copiem codul serverului
 WORKDIR /app
+COPY main.lua .
 
-COPY . .
+# Setăm portul
+ENV PORT=4342
 
-EXPOSE $PORT
+# Expunem portul
+EXPOSE 4342
 
-CMD ["lua5.3", "server.lua"]
+# Comanda de start
+CMD ["lua", "main.lua"]
