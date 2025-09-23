@@ -1,6 +1,6 @@
 # Folosim Ubuntu 20.04 pentru compatibilitate lua-websockets
 FROM ubuntu:20.04
-
+ENV DEBIAN_FRONTEND=noninteractive
 # Instalăm Lua 5.1, LuaRocks și unelte build (fără tzdata)
 RUN apt-get update && \
     apt-get install -y lua5.1 lua5.1-dev luarocks git build-essential && \
