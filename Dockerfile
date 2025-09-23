@@ -9,7 +9,7 @@ RUN luarocks install lua-websockets
 
 # Copiem codul serverului
 WORKDIR /app
-COPY main.lua .
+COPY server.lua .
 
 # Setăm portul
 ENV PORT=4342
@@ -18,4 +18,4 @@ ENV PORT=4342
 EXPOSE 4342
 
 # Comanda de start
-CMD ["lua", "main.lua"]
+CMD ["lua", "server.lua"]
