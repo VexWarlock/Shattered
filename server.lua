@@ -1,38 +1,53 @@
 local socket = require("socket")
-
--- Portul este dat de Render prin variabila de mediu PORT
-local port = tonumber(os.getenv("PORT")) or 4342
-local server = assert(socket.bind("*", port))
+local server = assert(socket.bind("*", 4342))
 server:settimeout(0)
 
 local clients = {}
 local positions = {}
 
-print("Server started on port: " .. port .. "...")
+-- Token secret
+local SECRET_TOKEN = "mysecret123"
+
+print("Server started on port 4342...")
 
 while true do
-    -- Acceptă clienți noi
     local client = server:accept()
     if client then
         client:settimeout(0)
-        table.insert(clients, client)
-        print("Player connected!")
+        -- marcați clientul ca "neautentificat" la început
+        clients[client] = { authenticated = false }
+        print("Player connected! Waiting for authentication...")
     end
 
-    -- Procesează clienții existenți
-    for i = #clients, 1, -1 do
-        local c = clients[i]
+    for c, data in pairs(clients) do
         local line, err = c:receive("*l")
         if line then
-            local x, y = line:match("([^,]+),([^,]+)")
-            if x and y then
-                positions[c] = { x = tonumber(x), y = tonumber(y) }
-                print("Player " .. tostring(c) .. " -> x: " .. x .. " , y: " .. y)
+            if not data.authenticated then
+                -- verificăm token-ul
+                if line == SECRET_TOKEN then
+                    data.authenticated = true
+                    print("Player authenticated!")
+                else
+                    print("Authentication failed. Disconnecting client.")
+                    c:close()
+                    clients[c] = nil
+                end
+            else
+                -- clientul este autentificat, procesăm poziția
+                local x, y = line:match("([^,]+),([^,]+)")
+                if x and y then
+                    positions[c] = { x = tonumber(x), y = tonumber(y) }
+                    print("Player " .. tostring(c) .. " -> x: " .. x .. " , y: " .. y)
+                end
             end
         elseif err == "closed" then
             print("Player left!")
-            table.remove(clients, i)
+            clients[c] = nil
             positions[c] = nil
+        elseif err == "timeout" then
+            -- nimic, clientul e încă conectat
+        else
+            print("Other error:", err)
         end
     end
 
