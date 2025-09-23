@@ -1,58 +1,38 @@
-local socket = require("socket")
-local server = assert(socket.bind("*", 4342)) -- schimbă portul pe Render dacă e nevoie
-server:settimeout(0)
+local websocket = require("websocket.server")
+local json = require("dkjson") -- pentru a serializa date (opțional)
 
-local clients = {}
+local SECRET_TOKEN = "mysecret123"
 local positions = {}
 
--- Token secret
-local SECRET_TOKEN = "mysecret123"
+-- Creăm serverul WebSocket pe portul Render (folosește $PORT)
+local port = os.getenv("PORT") or 4342
+local ws = websocket.server.sync({
+    port = tonumber(port)
+})
 
-print("Server started on port 4342...")
+print("WebSocket server started on port " .. port)
+
+for client in ws:clients() do
+    -- client:send("Mesaj de bun venit") -- poți trimite imediat
+end
 
 while true do
-    -- Acceptăm clienți noi
-    local client = server:accept()
-    if client then
-        client:settimeout(0)
-        clients[client] = { authenticated = false }
-        print("Player connected! Waiting for authentication...")
-    end
-
-    -- Procesăm clienții existenți
-    for c, data in pairs(clients) do
-        local line, err = c:receive("*l")
-        if line then
-            if not data.authenticated then
-                -- Verificăm token-ul
-                if line == SECRET_TOKEN then
-                    data.authenticated = true
-                    print("Player authenticated!")
-                    -- Trimitem confirmarea clientului
-                    c:send("OK\n")
-                else
-                    print("Authentication failed. Disconnecting client.")
-                    c:close()
-                    clients[c] = nil
-                end
-            else
-                -- Clientul e autentificat, procesăm poziția
-                local x, y = line:match("([^,]+),([^,]+)")
+    for client in ws:clients() do
+        local message, err = client:receive()
+        if message then
+            local data = message:match("([^,]+),([^,]+)")
+            if data then
+                local x, y = message:match("([^,]+),([^,]+)")
                 if x and y then
-                    positions[c] = { x = tonumber(x), y = tonumber(y) }
-                    print("Player " .. tostring(c) .. " -> x: " .. x .. " , y: " .. y)
+                    positions[client] = { x = tonumber(x), y = tonumber(y) }
+                    print("Player " .. tostring(client) .. " -> x: " .. x .. " , y: " .. y)
                 end
+            elseif message == SECRET_TOKEN then
+                client:send("OK")
             end
-        elseif err == "closed" then
-            print("Player left!")
-            clients[c] = nil
-            positions[c] = nil
-        elseif err == "timeout" then
-            -- nimic, clientul e încă conectat
-        else
-            print("Other error:", err)
+        elseif err then
+            print("Client disconnected or error:", err)
+            positions[client] = nil
         end
     end
-
-    socket.sleep(0.01)
 end
