@@ -51,4 +51,21 @@ wss.on('connection', (ws) => {
             }
         } else {
             // procesăm poziția
-            const [x, y] = msg.split(',
+            const [x, y] = msg.split(',');
+            if (x && y) {
+                players[playerId].x = parseFloat(x);
+                players[playerId].y = parseFloat(y);
+
+                broadcast({ type: "POS", id: playerId, x: players[playerId].x, y: players[playerId].y }, playerId);
+            }
+        }
+    });
+
+    ws.on('close', () => {
+        if (playerId && players[playerId]) {
+            delete players[playerId];
+            broadcast({ type: "REMOVE", id: playerId });
+            console.log(`Client ${playerId} disconnected`);
+        }
+    });
+});
