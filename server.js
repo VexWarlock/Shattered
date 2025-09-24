@@ -5,13 +5,12 @@ const SECRET_TOKEN = "mysecret123";
 
 const wss = new WebSocket.Server({ port: PORT });
 const players = {}; // id -> { ws, x, y }
-
-let nextPlayerId = 1; // counter incremental
+let nextId = 1;
 
 console.log(`WebSocket server running on port ${PORT}`);
 
-function broadcast(data, exceptId = null) {
-    const msg = JSON.stringify(data);
+// Trimite un mesaj text tuturor clienților (mai puțin unu)
+function broadcast(msg, exceptId = null) {
     for (const [id, p] of Object.entries(players)) {
         if (id !== exceptId) {
             p.ws.send(msg);
@@ -27,34 +26,37 @@ wss.on('connection', (ws) => {
         const msg = message.toString();
 
         if (!authenticated) {
+            // autentificare
             if (msg === SECRET_TOKEN) {
                 authenticated = true;
-
-                // folosește counter-ul ca ID
-                playerId = (nextPlayerId++).toString();
+                playerId = "player" + nextId++;
                 players[playerId] = { ws, x: 0, y: 0 };
 
-                ws.send(JSON.stringify({ type: "AUTH_OK", id: playerId }));
+                // confirmă autentificarea
+                ws.send(`AUTH_OK:${playerId}`);
                 console.log(`Client authenticated with id ${playerId}`);
 
-                const snapshot = {};
+                // trimite snapshot (toți ceilalți jucători)
+                let snapshot = [];
                 for (const [id, p] of Object.entries(players)) {
-                    snapshot[id] = { x: p.x, y: p.y };
+                    snapshot.push(`${id},${p.x},${p.y}`);
                 }
-                ws.send(JSON.stringify({ type: "SNAPSHOT", players: snapshot }));
+                ws.send("SNAPSHOT:" + snapshot.join(";"));
 
-                broadcast({ type: "NEW_PLAYER", id: playerId, x: 0, y: 0 }, playerId);
+                // anunță ceilalți
+                broadcast(`NEW:${playerId},0,0`, playerId);
             } else {
                 ws.close();
                 console.log("Authentication failed");
             }
         } else {
-            const [x, y] = msg.split(',');
+            // poziție nouă
+            const [x, y] = msg.split(",");
             if (x && y) {
                 players[playerId].x = parseFloat(x);
                 players[playerId].y = parseFloat(y);
 
-                broadcast({ type: "POS", id: playerId, x: players[playerId].x, y: players[playerId].y }, playerId);
+                broadcast(`POS:${playerId},${x},${y}`, playerId);
             }
         }
     });
@@ -62,7 +64,7 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         if (playerId && players[playerId]) {
             delete players[playerId];
-            broadcast({ type: "REMOVE", id: playerId });
+            broadcast(`REMOVE:${playerId}`);
             console.log(`Client ${playerId} disconnected`);
         }
     });
