@@ -1,11 +1,10 @@
-// server.js
 const http = require("http");
 const WebSocket = require("ws");
 
 const PORT = process.env.PORT || 10000;
 const SECRET_TOKEN = "mysecret123";
 
-// HTTP pentru health check
+// HTTP for health check
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("OK");
@@ -13,11 +12,12 @@ const server = http.createServer((req, res) => {
 
 // WebSocket server
 const wss = new WebSocket.Server({ server });
-const players = {}; // id -> { ws, x, y, z }
+const players = {}; // id -> { ws, x, y, z, lastUpdate }
 let nextId = 1;
 
 console.log(`Starting WebSocket server on port ${PORT}`);
 
+// Broadcast message to all except optional id
 function broadcast(msg, exceptId = null) {
     for (const [id, p] of Object.entries(players)) {
         if (id !== exceptId) {
@@ -41,32 +41,40 @@ wss.on("connection", (ws) => {
             if (msg === SECRET_TOKEN) {
                 authenticated = true;
                 playerId = "player" + nextId++;
-                players[playerId] = { ws, x: 23, y: 231, z: 1 }; // spawn default
+                players[playerId] = { ws, x: 23, y: 231, z: 1, lastUpdate: Date.now() };
 
                 ws.send(`AUTH_OK:${playerId}`);
                 console.log(`✅ Client authenticated with id ${playerId}`);
 
-                // trimite snapshot
-                let snapshot = [];
+                // Send snapshot
+                const snapshot = [];
                 for (const [id, p] of Object.entries(players)) {
                     snapshot.push(`${id},${p.x},${p.y},${p.z}`);
                 }
                 ws.send("SNAPSHOT:" + snapshot.join(";"));
 
-                // anunță ceilalți
+                // Notify others
                 broadcast(`NEW:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
             } else {
                 ws.close();
                 console.log("❌ Authentication failed");
             }
         } else {
-            const [x, y, z] = msg.split(",");
-            if (x && y) {
-                players[playerId].x = parseFloat(x);
-                players[playerId].y = parseFloat(y);
-                players[playerId].z = z ? parseFloat(z) : 1;
+            // Expect position: x,y,z
+            const [xStr, yStr, zStr] = msg.split(",");
+            const x = parseFloat(xStr);
+            const y = parseFloat(yStr);
+            const z = zStr ? parseFloat(zStr) : 1;
 
-                broadcast(`POS:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
+            if (!isNaN(x) && !isNaN(y)) {
+                const now = Date.now();
+                players[playerId].x = x;
+                players[playerId].y = y;
+                players[playerId].z = z;
+                players[playerId].lastUpdate = now;
+
+                // Broadcast POS with timestamp
+                broadcast(`POS:${playerId},${x},${y},${z},${now}`, playerId);
             }
         }
     });
@@ -77,6 +85,10 @@ wss.on("connection", (ws) => {
             broadcast(`REMOVE:${playerId}`);
             console.log(`👋 Client ${playerId} disconnected`);
         }
+    });
+
+    ws.on("error", (err) => {
+        console.error(`WS error for player ${playerId}:`, err.message);
     });
 });
 
