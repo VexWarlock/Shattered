@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
 
 // WebSocket server
 const wss = new WebSocket.Server({ server });
-const players = {}; // id -> { ws, x, y, z }
+const players = {}; // id -> { ws, x, y, z, anim }
 let nextId = 1;
 
 console.log(`Starting WebSocket server on port ${PORT}`);
@@ -40,31 +40,36 @@ wss.on("connection", (ws) => {
             if (msg === SECRET_TOKEN) {
                 authenticated = true;
                 playerId = "player" + nextId++;
-                players[playerId] = { ws, x: 23, y: 231, z: 1 };
+                players[playerId] = { ws, x: 23, y: 231, z: 1, anim: "idle" };
 
                 ws.send(`AUTH_OK:${playerId}`);
                 console.log(`✅ Client authenticated with id ${playerId}`);
 
+                // trimite SNAPSHOT cu animatii
                 let snapshot = [];
                 for (const [id, p] of Object.entries(players)) {
-                    snapshot.push(`${id},${p.x},${p.y},${p.z}`);
+                    snapshot.push(`${id},${p.x},${p.y},${p.z},${p.anim}`);
                 }
                 ws.send("SNAPSHOT:" + snapshot.join(";"));
 
-                broadcast(`NEW:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
+                broadcast(`NEW:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z},${players[playerId].anim}`, playerId);
             } else {
                 ws.close();
                 console.log("❌ Authentication failed");
             }
         } else {
-            const [x, y, z] = msg.split(",");
-            if (x && y) {
-                players[playerId].x = parseFloat(x);
-                players[playerId].y = parseFloat(y);
-                players[playerId].z = z ? parseFloat(z) : 1;
+            const parts = msg.split(",");
+            const x = parseFloat(parts[0]);
+            const y = parseFloat(parts[1]);
+            const z = parts[2] ? parseFloat(parts[2]) : 1;
+            const anim = parts[3] || "idle";
 
-                broadcast(`POS:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
-            }
+            players[playerId].x = x;
+            players[playerId].y = y;
+            players[playerId].z = z;
+            players[playerId].anim = anim;
+
+            broadcast(`POS:${playerId},${x},${y},${z},${anim}`, playerId);
         }
     });
 
