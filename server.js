@@ -9,7 +9,7 @@ let nextId = 1;
 
 console.log(`WebSocket server running on port ${PORT}`);
 
-// Trimite un mesaj text tuturor clienților (mai puțin unu)
+// Trimite un mesaj tuturor clienților (mai puțin unu)
 function broadcast(msg, exceptId = null) {
     for (const [id, p] of Object.entries(players)) {
         if (id !== exceptId) {
@@ -30,27 +30,32 @@ wss.on('connection', (ws) => {
             if (msg === SECRET_TOKEN) {
                 authenticated = true;
                 playerId = "player" + nextId++;
-                players[playerId] = { ws, x: 0, y: 0 };
+                
+                // spawn default (ex: 23,231 în loc de 0,0)
+                const startX = 23;
+                const startY = 231;
+
+                players[playerId] = { ws, x: startX, y: startY };
 
                 // confirmă autentificarea
                 ws.send(`AUTH_OK:${playerId}`);
                 console.log(`Client authenticated with id ${playerId}`);
 
-                // trimite snapshot (toți ceilalți jucători)
+                // trimite snapshot (toți ceilalți jucători existenți)
                 let snapshot = [];
                 for (const [id, p] of Object.entries(players)) {
                     snapshot.push(`${id},${p.x},${p.y}`);
                 }
                 ws.send("SNAPSHOT:" + snapshot.join(";"));
 
-                // anunță ceilalți
-                broadcast(`NEW:${playerId},0,0`, playerId);
+                // anunță ceilalți cu poziția reală
+                broadcast(`NEW:${playerId},${startX},${startY}`, playerId);
             } else {
                 ws.close();
                 console.log("Authentication failed");
             }
         } else {
-            // poziție nouă
+            // poziție nouă primită de la client
             const [x, y] = msg.split(",");
             if (x && y) {
                 players[playerId].x = parseFloat(x);
