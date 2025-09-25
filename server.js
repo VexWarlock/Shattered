@@ -5,20 +5,19 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 10000;
 const SECRET_TOKEN = "mysecret123";
 
-// --- HTTP pentru health check (Render verifică asta) ---
+// HTTP pentru health check
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("OK");
 });
 
-// --- WebSocket Server ---
+// WebSocket server
 const wss = new WebSocket.Server({ server });
-const players = {}; // id -> { ws, x, y }
+const players = {}; // id -> { ws, x, y, z }
 let nextId = 1;
 
 console.log(`Starting WebSocket server on port ${PORT}`);
 
-// Trimite un mesaj text tuturor clienților (mai puțin unu)
 function broadcast(msg, exceptId = null) {
     for (const [id, p] of Object.entries(players)) {
         if (id !== exceptId) {
@@ -39,37 +38,35 @@ wss.on("connection", (ws) => {
         const msg = message.toString();
 
         if (!authenticated) {
-            // --- autentificare ---
             if (msg === SECRET_TOKEN) {
                 authenticated = true;
                 playerId = "player" + nextId++;
-                players[playerId] = { ws, x: 23, y: 231 }; // spawn default
+                players[playerId] = { ws, x: 23, y: 231, z: 1 }; // spawn default
 
-                // confirmă autentificarea
                 ws.send(`AUTH_OK:${playerId}`);
                 console.log(`✅ Client authenticated with id ${playerId}`);
 
-                // trimite snapshot (toți ceilalți jucători)
+                // trimite snapshot
                 let snapshot = [];
                 for (const [id, p] of Object.entries(players)) {
-                    snapshot.push(`${id},${p.x},${p.y}`);
+                    snapshot.push(`${id},${p.x},${p.y},${p.z}`);
                 }
                 ws.send("SNAPSHOT:" + snapshot.join(";"));
 
                 // anunță ceilalți
-                broadcast(`NEW:${playerId},${players[playerId].x},${players[playerId].y}`, playerId);
+                broadcast(`NEW:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
             } else {
                 ws.close();
                 console.log("❌ Authentication failed");
             }
         } else {
-            // --- poziție nouă ---
-            const [x, y] = msg.split(",");
+            const [x, y, z] = msg.split(",");
             if (x && y) {
                 players[playerId].x = parseFloat(x);
                 players[playerId].y = parseFloat(y);
+                players[playerId].z = z ? parseFloat(z) : 1;
 
-                broadcast(`POS:${playerId},${x},${y}`, playerId);
+                broadcast(`POS:${playerId},${players[playerId].x},${players[playerId].y},${players[playerId].z}`, playerId);
             }
         }
     });
@@ -83,7 +80,6 @@ wss.on("connection", (ws) => {
     });
 });
 
-// --- Pornește serverul ---
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
